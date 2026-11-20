@@ -5,7 +5,7 @@ exclude_files = { ".luarocks", "lua_modules" }
 
 -- What the addon defines for the game.
 globals = {
-    "RetailArenaCountdown",
+
     "RetailArenaCountdownDB",
     "SLASH_RETAILARENACOUNTDOWN1",
     "SLASH_RETAILARENACOUNTDOWN2",
@@ -22,7 +22,6 @@ read_globals = {
     "RaidBossEmoteFrame",
     "UIParent",
     "UnitFactionGroup",
-    "strtrim",
 }
 
 files["spec/**/*.lua"] = {
@@ -30,4 +29,5 @@ files["spec/**/*.lua"] = {
     -- The tests play the game API, so they define it.
     globals = { "_G" },
     allow_defined_top = true,
+    max_line_length = 130,
 }

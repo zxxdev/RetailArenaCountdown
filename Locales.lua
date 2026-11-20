@@ -1,10 +1,11 @@
 -- The messages the game prints before an arena match, in each client
 -- language, and how many seconds are left when each one appears. Taken from
--- Gladdy (Constants_shared.lua), GPL-2.0.
+-- Gladdy (Constants_shared.lua), GPL-2.0. Once the addon has loaded, only the
+-- player's language is kept; the rest is freed.
 
-RetailArenaCountdown = RetailArenaCountdown or {}
+local _, ns = ...
 
-RetailArenaCountdown.ARENA_MESSAGES = {
+ns.ARENA_MESSAGES = {
     ["default"] = {
         [60] = "One minute until the Arena battle begins!",
         [30] = "Thirty seconds until the Arena battle begins!",
@@ -60,12 +61,5 @@ RetailArenaCountdown.ARENA_MESSAGES = {
         [0] = "競技場戰鬥開始了!",
     },
 }
-
-local messages = RetailArenaCountdown.ARENA_MESSAGES
-messages["esMX"] = messages["esES"]
-messages["ptPT"] = messages["ptBR"]
-
---- The messages for a client language, or the English ones when it has none.
-function RetailArenaCountdown.MessagesFor(locale)
-    return messages[locale] or messages["default"]
-end
+ns.ARENA_MESSAGES["esMX"] = ns.ARENA_MESSAGES["esES"]
+ns.ARENA_MESSAGES["ptPT"] = ns.ARENA_MESSAGES["ptBR"]
