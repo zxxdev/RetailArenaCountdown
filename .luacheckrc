@@ -3,9 +3,8 @@ std = "lua51"
 max_line_length = 120
 exclude_files = { ".luarocks", "lua_modules" }
 
--- What the addon defines for the game.
+-- What the addon defines for the game: its saved settings and slash command.
 globals = {
-
     "RetailArenaCountdownDB",
     "SLASH_RETAILARENACOUNTDOWN1",
     "SLASH_RETAILARENACOUNTDOWN2",
