@@ -1,23 +1,28 @@
 -- RetailArenaCountdown with the game played by tables: frames and textures
 -- remember what they were told, sounds are recorded, and each test drives the
--- arena by sending events and ticking the clock. Run with `busted`.
+-- arena by sending events and ticking the clock. The addon is loaded the way
+-- the game loads it, with its private namespace. Run with `busted`.
 
-local IMAGES = "Interface\\AddOns\\RetailArenaCountdown\\Images\\"
-local TICK = "Interface\\AddOns\\RetailArenaCountdown\\Sounds\\UI_BattlegroundCountdown_Timer.ogg"
-local END = "Interface\\AddOns\\RetailArenaCountdown\\Sounds\\UI_BattlegroundCountdown_End.ogg"
+local MEDIA = "Interface\\AddOns\\RetailArenaCountdown\\"
+local IMAGES = MEDIA .. "Images\\"
+local TICK = MEDIA .. "Sounds\\UI_BattlegroundCountdown_Timer.ogg"
+local END = MEDIA .. "Sounds\\UI_BattlegroundCountdown_End.ogg"
 
-local function newRegion()
+local function newRegion(game)
     local region = { shown = false, events = {}, scripts = {} }
-    function region:Show() self.shown = true end
-    function region:Hide() self.shown = false end
-    function region:IsShown() return self.shown end
-    function region:SetTexture(path) self.texture = path end
-    function region:SetScale(scale) self.scale = scale end
-    function region:RegisterEvent(event) self.events[event] = true end
-    function region:UnregisterEvent(event) self.events[event] = nil end
-    function region:IsEventRegistered(event) return self.events[event] == true end
-    function region:SetScript(name, handler) self.scripts[name] = handler end
-    function region:CreateTexture() return newRegion() end
+    function region.Show(r) r.shown = true end
+    function region.Hide(r) r.shown = false end
+    function region.IsShown(r) return r.shown end
+    function region.SetTexture(r, path) r.texture = path end
+    function region.SetScale(r, scale) r.scale = scale end
+    function region.RegisterEvent(r, event) r.events[event] = true end
+    function region.UnregisterEvent(r, event) r.events[event] = nil end
+    function region.IsEventRegistered(r, event) return r.events[event] == true end
+    function region.SetScript(r, name, handler) r.scripts[name] = handler end
+    function region.CreateTexture()
+        game.textures = game.textures + 1
+        return newRegion(game)
+    end
     for _, name in ipairs({
         "EnableMouse", "SetFrameStrata", "SetFrameLevel", "SetWidth", "SetHeight",
         "ClearAllPoints", "SetPoint",
@@ -30,28 +35,30 @@ end
 --- A fresh fake game, the addon loaded and logged in.
 local function setupGame(options)
     options = options or {}
-    local game = { sounds = {}, printed = {}, instance = "none" }
+    local game = { sounds = {}, printed = {}, instance = "none", frames = 0, textures = 0 }
 
-    _G.UIParent = newRegion()
-    _G.CreateFrame = function() return newRegion() end
+    _G.UIParent = newRegion(game)
+    _G.CreateFrame = function()
+        game.frames = game.frames + 1
+        return newRegion(game)
+    end
     _G.PlaySoundFile = function(path) table.insert(game.sounds, path) end
     _G.UnitFactionGroup = function() return options.faction or "Horde" end
     _G.IsInInstance = function() return game.instance ~= "none", game.instance end
     _G.GetLocale = function() return options.locale or "enUS" end
-    _G.strtrim = function(text) return (text:gsub("^%s+", ""):gsub("%s+$", "")) end
     _G.print = function(text) table.insert(game.printed, text) end
     _G.SlashCmdList = {}
-    _G.RaidBossEmoteFrame = newRegion()
+    _G.RaidBossEmoteFrame = newRegion(game)
     _G.RaidBossEmoteFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
     _G.LibStub = options.libStub
-    _G.RetailArenaCountdown = nil
     _G.RetailArenaCountdownDB = options.saved
 
-    dofile("Locales.lua")
-    dofile("RetailArenaCountdown.lua")
-    game.addon = _G.RetailArenaCountdown
-    local onEvent = game.addon.events.scripts.OnEvent
-    game.fire = function(event, ...) onEvent(nil, event, ...) end
+    local ns = {}
+    assert(loadfile("Locales.lua"))("RetailArenaCountdown", ns)
+    assert(loadfile("RetailArenaCountdown.lua"))("RetailArenaCountdown", ns)
+    game.addon = ns
+    game.fire = function(event, ...) ns.events.scripts.OnEvent(ns.events, event, ...) end
+    game.fire("ADDON_LOADED", "SomeOtherAddon")
     game.fire("ADDON_LOADED", "RetailArenaCountdown")
     game.fire("PLAYER_LOGIN")
 
@@ -64,8 +71,9 @@ local function setupGame(options)
         game.fire("PLAYER_ENTERING_WORLD")
     end
     -- One second passes.
-    game.tick = function() game.addon.clock.scripts.OnUpdate(nil, 1) end
+    game.tick = function() ns.clock.scripts.OnUpdate(ns.clock, 1) end
     game.say = function(message) game.fire("CHAT_MSG_BG_SYSTEM_NEUTRAL", message) end
+    game.visible = function() return ns.frame ~= nil and ns.frame.shown end
     return game
 end
 
@@ -78,12 +86,20 @@ local function digits(game)
     }
 end
 
+--- Enter an arena and start counting from `seconds`, as the game would.
+local function countFrom(game, seconds)
+    game.enterArena()
+    game.addon.countdown = seconds
+    game.addon.clock:Show()
+end
+
 describe("the countdown", function()
     it("starts from the game's message, in the client's language", function()
         local game = setupGame({ locale = "esES" })
         game.enterArena()
         game.say("¡Un minuto hasta que dé comienzo la batalla en arena!")
         assert.equal(60, game.addon.countdown)
+        assert.is_true(game.addon.clock.shown)
     end)
 
     it("uses the English messages for a language it does not know", function()
@@ -95,8 +111,7 @@ describe("the countdown", function()
 
     it("shows both digits of 45, not an image called 4.5", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 45
+        countFrom(game, 45)
         game.tick()
         assert.same({ tens = IMAGES .. "4", ones = IMAGES .. "5" }, digits(game))
         assert.equal(0.7, game.addon.frame.scale)
@@ -104,8 +119,7 @@ describe("the countdown", function()
 
     it("shows one digit below 10, at full size", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 7
+        countFrom(game, 7)
         game.tick()
         assert.same({ single = IMAGES .. "7" }, digits(game))
         assert.equal(1.0, game.addon.frame.scale)
@@ -113,8 +127,7 @@ describe("the countdown", function()
 
     it("plays a sound at 10 and on every second from 9 to 1, and the closing one at 0", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 12
+        countFrom(game, 12)
         for _ = 12, 0, -1 do
             game.tick()
         end
@@ -128,8 +141,7 @@ describe("the countdown", function()
 
     it("shows the player's faction crest when the gates open", function()
         local game = setupGame({ faction = "Alliance" })
-        game.enterArena()
-        game.addon.countdown = 0
+        countFrom(game, 0)
         game.tick()
         assert.same({ single = IMAGES .. "Alliance" }, digits(game))
     end)
@@ -145,11 +157,10 @@ describe("the countdown", function()
 
     it("puts everything back once the crest has been shown", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 0
+        countFrom(game, 0)
         game.tick() -- crest
         game.tick() -- over
-        assert.is_false(game.addon.frame.shown)
+        assert.is_false(game.visible())
         assert.is_false(game.addon.clock.shown)
         assert.is_nil(game.addon.countdown)
         assert.is_nil(game.addon.events.events.CHAT_MSG_BG_SYSTEM_NEUTRAL)
@@ -181,19 +192,58 @@ describe("the arena", function()
 
     it("stops when an enemy is seen while time is left", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 20
+        countFrom(game, 20)
+        game.tick()
         game.fire("ARENA_OPPONENT_UPDATE", "arena1", "seen")
         assert.is_nil(game.addon.countdown)
-        assert.is_false(game.addon.frame.shown)
+        assert.is_false(game.visible())
     end)
 
     it("keeps the crest when an enemy is seen at 0", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 0
+        countFrom(game, 0)
         game.fire("ARENA_OPPONENT_UPDATE", "arena1", "seen")
         assert.equal(0, game.addon.countdown)
+    end)
+end)
+
+describe("light on the game", function()
+    it("creates no display until the first countdown", function()
+        local game = setupGame()
+        game.enterArena()
+        assert.is_nil(game.addon.frame)
+        assert.equal(0, game.textures)
+        game.say("Fifteen seconds until the Arena battle begins!")
+        game.tick()
+        assert.equal(3, game.textures)
+    end)
+
+    it("keeps only the player's language of the arena messages", function()
+        local game = setupGame({ locale = "deDE" })
+        assert.is_nil(game.addon.ARENA_MESSAGES)
+        assert.equal("Der Arenakampf hat begonnen!", game.addon.messages[0])
+    end)
+
+    it("runs its clock only while a countdown is on screen", function()
+        local game = setupGame()
+        assert.is_false(game.addon.clock.shown)
+        game.enterArena()
+        assert.is_false(game.addon.clock.shown) -- in the arena, but no message yet
+        game.say("Fifteen seconds until the Arena battle begins!")
+        assert.is_true(game.addon.clock.shown)
+    end)
+
+    it("stops listening to load events once it has loaded, and never to queue updates", function()
+        local game = setupGame()
+        assert.is_nil(game.addon.events.events.ADDON_LOADED)
+        assert.is_nil(game.addon.events.events.PLAYER_LOGIN)
+        assert.is_nil(game.addon.events.events.UPDATE_BATTLEFIELD_STATUS)
+    end)
+
+    it("leaves nothing global except its saved settings and slash command", function()
+        setupGame()
+        assert.is_nil(rawget(_G, "RetailArenaCountdown"))
+        assert.is_table(rawget(_G, "RetailArenaCountdownDB"))
     end)
 end)
 
@@ -244,19 +294,19 @@ describe("settings and commands", function()
         local game = setupGame()
         _G.SlashCmdList.RETAILARENACOUNTDOWN("size 600")
         assert.equal(256, game.addon.db.size)
-        _G.SlashCmdList.RETAILARENACOUNTDOWN("size 128")
+        _G.SlashCmdList.RETAILARENACOUNTDOWN("  SIZE 128 ")
         assert.equal(128, game.addon.db.size)
     end)
 
     it("/racd off hides it and stops it showing", function()
         local game = setupGame()
-        game.enterArena()
-        game.addon.countdown = 30
+        countFrom(game, 30)
+        game.tick()
         _G.SlashCmdList.RETAILARENACOUNTDOWN("off")
         assert.is_false(game.addon.db.enabled)
-        assert.is_false(game.addon.frame.shown)
+        assert.is_false(game.visible())
         game.addon.countdown = 30
         game.tick()
-        assert.is_false(game.addon.frame.shown)
+        assert.is_false(game.visible())
     end)
 end)
