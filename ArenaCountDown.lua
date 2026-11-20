@@ -1,5 +1,6 @@
 local str_find, pairs = string.find, pairs
 local CreateFrame = CreateFrame
+local RaidBossEmoteFrame = RaidBossEmoteFrame
 
 local Gladdy = LibStub("Gladdy")
 local L = Gladdy.L
@@ -14,13 +15,8 @@ function ACDFrame:OnEvent(event, ...)
     self[event](self, ...)
 end
 
---TimerTracker_StartTimerOfType(self, Enum.StartTimerType.PlayerCountdown, timeSeconds, totalTime, informChat, initiatedByGuid, initiatedByName);
--- /run TimerTracker_StartTimerOfType(TimerTracker, Enum.StartTimerType.PvPBeginTimer, 15, 40)
--- /run TimerTracker_StartTimerOfType(TimerTracker, Enum.StartTimerType.PvPBeginTimer, 0, 40)
-
 function ACDFrame:Initialize()
     self.locale = Gladdy:GetArenaTimer()
-    self.countdown = -1
     self.texturePath = "Interface\\AddOns\\Gladdy\\Images\\Countdown\\";
 
     local ACDNumFrame = CreateFrame("Frame", "ACDNumFrame", UIParent)
@@ -98,49 +94,74 @@ function ACDFrame:CreateTicker(countdown)
     if self.ticker and not self.ticker:IsCancelled() then
         self.ticker:Cancel()
     end
-    self.ticker = C_Timer.NewTicker(1, ACDFrame.Ticker)
+    self.ticker = C_Timer.NewTicker(1, ACDFrame.Ticker) -- .98?
 end
 
 function ACDFrame.Ticker()
     local self = ACDFrame
+    
     if (Gladdy.db.countdown) then
         self.ACDNumFrame:Show()
+        
         if (self.countdown and self.countdown >= 10 and self.countdown <= 60) then
             -- Display has 2 digits
             local ones = self.countdown % 10
             local tens = (self.countdown / 10) % 10
+            
             self.ACDNumOne:Hide()
             self.ACDNumTens:Show()
             self.ACDNumOnes:Show()
-
+            
             self.ACDNumTens:SetTexture(self.texturePath .. tens)
             self.ACDNumOnes:SetTexture(self.texturePath .. ones)
+            
             self.ACDNumFrame:SetScale(0.7)
+            
+            if self.countdown == 10 then
+                PlaySoundFile("Interface\\AddOns\\SharedMedia\\Media\\Sound\\UI_BattlegroundCountdown_Timer.ogg")
+            end
+        
         elseif (self.countdown and self.countdown < 10 and self.countdown > -1) then
             -- Display has 1 digit
             local path = self.countdown <= 0 and self.faction or self.countdown
+            
             self.ACDNumOne:Show()
             self.ACDNumOne:SetTexture(self.texturePath .. path)
+            
             self.ACDNumOnes:Hide()
             self.ACDNumTens:Hide()
+            
             self.ACDNumFrame:SetScale(1.0)
+            
+            -- Reproducir sonido de cada cambio de número (para el último dígito)
+            PlaySoundFile("Interface\\AddOns\\SharedMedia\\Media\\Sound\\UI_BattlegroundCountdown_Timer.ogg")
+        
         else
             ACDFrame:HideAll()
-            if (self.countdown and self.countdown < -1) then
-                self.ticker:Cancel()
+            
+            if (self.countdown) then
+                ACDFrame:Reset()
             end
         end
+        
+        -- Reproducir sonido cuando el contador llegue a cero (último tick)
+        if self.countdown == 0 then
+            PlaySoundFile("Interface\\AddOns\\SharedMedia\\Media\\Sound\\UI_BattlegroundCountdown_End.ogg")
+        end
+        
         self.countdown = self.countdown and self.countdown - 1
+        
     else
         ACDFrame:HideAll()
     end
 end
 
+
 function ACDFrame:JOINED_ARENA()
-    if Gladdy.db.countdown then
-        TimerTracker_OnEvent(TimerTracker, "STOP_TIMER_OF_TYPE", Enum.StartTimerType.PvPBeginTimer)
+    if Gladdy.db.countdown and not self.countdown then
         self:CreateTicker(nil)
         self:RegisterEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
+        RaidBossEmoteFrame:UnregisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
     end
 end
 
@@ -150,17 +171,18 @@ function ACDFrame:Reset()
     end
     self.countdown = nil
     self:UnregisterEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
+    RaidBossEmoteFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
     ACDFrame:HideAll()
 end
 
 function ACDFrame:ENEMY_SPOTTED()
-    if not Gladdy.frame.testing then
+    if not Gladdy.frame.testing and (self.countdown and self.countdown > 0) then
         ACDFrame:Reset()
     end
 end
 
 function ACDFrame:UNIT_SPEC()
-    if not Gladdy.frame.testing then
+    if not Gladdy.frame.testing and (self.countdown and self.countdown > 0) then
         ACDFrame:Reset()
     end
 end
@@ -171,7 +193,6 @@ function ACDFrame:CHAT_MSG_BG_SYSTEM_NEUTRAL(msg)
             if self.countdown and self.countdown == 0 then
                 return
             end
-            TimerTracker_OnEvent(TimerTracker, "STOP_TIMER_OF_TYPE", Enum.StartTimerType.PvPBeginTimer)
             self.countdown = k
         end
     end
