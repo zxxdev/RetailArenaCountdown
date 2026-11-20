@@ -190,6 +190,31 @@ describe("the arena", function()
         assert.is_false(_G.RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
     end)
 
+    it("gives boss emotes back as soon as the gates open, not when leaving", function()
+        local game = setupGame()
+        countFrom(game, 0)
+        assert.is_false(_G.RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
+        game.tick() -- crest
+        game.tick() -- over, still in the arena
+        assert.is_true(_G.RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
+    end)
+
+    it("leaves boss emotes alone if another addon turned them back on meanwhile", function()
+        local game = setupGame()
+        game.enterArena()
+        local frame = _G.RaidBossEmoteFrame
+        frame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE") -- someone else
+        local register = frame.RegisterEvent
+        local calls = 0
+        frame.RegisterEvent = function(...)
+            calls = calls + 1
+            return register(...)
+        end
+        game.leaveArena()
+        assert.equal(0, calls)
+        assert.is_true(frame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
+    end)
+
     it("stops when an enemy is seen while time is left", function()
         local game = setupGame()
         countFrom(game, 20)
@@ -281,6 +306,7 @@ describe("settings and commands", function()
         local game = setupGame({ saved = { size = 128 } })
         assert.equal(128, game.addon.db.size)
         assert.is_true(game.addon.db.enabled)
+        assert.is_true(game.addon.db.hideEmotes)
     end)
 
     it("/racd test runs a 15-second countdown outside the arena", function()
@@ -296,6 +322,20 @@ describe("settings and commands", function()
         assert.equal(256, game.addon.db.size)
         _G.SlashCmdList.RETAILARENACOUNTDOWN("  SIZE 128 ")
         assert.equal(128, game.addon.db.size)
+    end)
+
+    it("/racd emotes show never touches boss emotes, and gives them back at once", function()
+        local game = setupGame()
+        game.enterArena()
+        assert.is_false(_G.RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
+        _G.SlashCmdList.RETAILARENACOUNTDOWN("emotes show")
+        assert.is_false(game.addon.db.hideEmotes)
+        assert.is_true(_G.RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
+        game.leaveArena()
+        game.enterArena()
+        assert.is_true(_G.RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE"))
+        _G.SlashCmdList.RETAILARENACOUNTDOWN("emotes hide")
+        assert.is_true(game.addon.db.hideEmotes)
     end)
 
     it("/racd off hides it and stops it showing", function()

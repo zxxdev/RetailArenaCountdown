@@ -25,6 +25,8 @@ are Blizzard's.
 /racd test     a 15-second countdown, to see it outside the arena
 /racd size N   size in pixels, 64 to 512 (256 by default)
 /racd on, /racd off
+/racd emotes hide|show   hide the big boss emote text during the countdown
+                         (the default), or never touch it
 ]]
 
 local ADDON, ns = ...
@@ -44,7 +46,7 @@ end
 IMAGE.Alliance = MEDIA .. "Images\\Alliance"
 IMAGE.Horde = MEDIA .. "Images\\Horde"
 
-ns.DEFAULTS = { enabled = true, size = 256, strata = "HIGH", level = 50 }
+ns.DEFAULTS = { enabled = true, size = 256, strata = "HIGH", level = 50, hideEmotes = true }
 
 local events = CreateFrame("Frame")
 ns.events = events
@@ -179,11 +181,13 @@ function ns.OnArenaMessage(message)
     end
 end
 
--- The boss emote frame repeats the arena messages in big letters. It is
--- silenced in the arena, and only given back if it was this addon that
--- silenced it.
+-- The boss emote frame repeats the arena messages in big letters, over the
+-- numbers. It is silenced from entering the arena until the gates open (or
+-- the player leaves), and only if this addon is the one that silences it:
+-- if it was already silent, or someone turns it back on meanwhile, it is
+-- left alone. /racd emotes show turns this off.
 local function silenceBossEmotes()
-    if not RaidBossEmoteFrame then
+    if not RaidBossEmoteFrame or not ns.db.hideEmotes then
         return
     end
     -- If this client cannot tell, the frame is listening: that is the default.
@@ -196,9 +200,14 @@ local function silenceBossEmotes()
 end
 
 local function restoreBossEmotes()
-    if ns.silencedEmotes then
+    if not ns.silencedEmotes then
+        return
+    end
+    ns.silencedEmotes = false
+    local listening = RaidBossEmoteFrame.IsEventRegistered
+        and RaidBossEmoteFrame:IsEventRegistered("CHAT_MSG_RAID_BOSS_EMOTE")
+    if not listening then
         RaidBossEmoteFrame:RegisterEvent("CHAT_MSG_RAID_BOSS_EMOTE")
-        ns.silencedEmotes = false
     end
 end
 
@@ -277,9 +286,16 @@ function ns.Command(input)
             ns.Reset()
         end
         say(ns.db.enabled and "on." or "off.")
+    elseif command == "emotes" and (value == "hide" or value == "show") then
+        ns.db.hideEmotes = value == "hide"
+        if not ns.db.hideEmotes then
+            restoreBossEmotes()
+        end
+        say(ns.db.hideEmotes and "boss emotes hidden during the countdown." or "boss emotes always shown.")
     else
-        say((ns.db.enabled and "on" or "off") .. ", size " .. ns.db.size .. ".")
-        say("/racd test, /racd size 64-512, /racd on, /racd off")
+        say((ns.db.enabled and "on" or "off") .. ", size " .. ns.db.size .. ", boss emotes "
+            .. (ns.db.hideEmotes and "hidden during the countdown." or "always shown."))
+        say("/racd test, /racd size 64-512, /racd on, /racd off, /racd emotes hide|show")
     end
 end
 
