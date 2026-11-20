@@ -1,0 +1,9 @@
+## Interface: 30300
+## Title: RetailArenaCountdown
+## Notes: The arena countdown as in the modern game: big numbers, sounds and your faction's crest.
+## Author: zxxdev, based on Gladdy's countdown (XiconQoo, DnB_Junkee, Knall, Tsoukie)
+## Version: 1.0.0
+## SavedVariables: RetailArenaCountdownDB
+## OptionalDeps: Gladdy
+Locales.lua
+RetailArenaCountdown.lua
