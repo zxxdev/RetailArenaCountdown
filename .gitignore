@@ -1,0 +1,4 @@
+# Never commit game settings or anything from the WTF folder.
+WTF/
+SavedVariables/
+*.bak
