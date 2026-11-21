@@ -1,0 +1,66 @@
+name: Release
+
+# Pushing a tag such as v1.0.0 builds the zip players copy into
+# Interface/AddOns and publishes it as a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  ADDON: RetailArenaCountdown
+
+jobs:
+  release:
+    name: Build the zip and publish the release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # to create the release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check that the tag matches the version in the .toc
+        run: |
+          version=$(sed -n 's/^## Version: *//p' "$ADDON.toc" | tr -d '\r')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "The tag is $GITHUB_REF_NAME but $ADDON.toc says $version." >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build the zip
+        run: |
+          target="dist/$ADDON"
+          mkdir -p "$target"
+          # The files the .toc loads, the .toc itself, its media, and the
+          # license and README that must travel with the code.
+          grep -v '^#' "$ADDON.toc" | tr -d '\r' | grep . | while read -r file; do
+            cp "$file" "$target/"
+          done
+          cp "$ADDON.toc" LICENSE README.md "$target/"
+          for media in Images Sounds; do
+            if [ -d "$media" ]; then cp -r "$media" "$target/"; fi
+          done
+          (cd dist && zip -qr "$ADDON-$VERSION.zip" "$ADDON")
+          unzip -l "dist/$ADDON-$VERSION.zip"
+
+      - name: Take this version's notes from the changelog
+        run: |
+          awk -v version="$VERSION" '
+            index($0, "## " version) == 1 { found = 1; next }
+            /^## / { found = 0 }
+            found
+          ' CHANGELOG.md > notes.md
+          test -s notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "dist/$ADDON-$VERSION.zip" \
+            --title "$ADDON $VERSION" --notes-file notes.md --verify-tag
