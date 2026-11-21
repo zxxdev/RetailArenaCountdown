@@ -19,6 +19,7 @@ A standalone addon: Gladdy is no longer needed.
 
 - Boss emotes are hidden only from entering the arena until the gates open, and given back only if this addon hid them and nobody turned them back on meanwhile.
 - Its own clock instead of `C_Timer`, which the 3.3.5a client does not have. It only runs while a countdown is on screen.
+- Each number shows the moment the game's message arrives, not up to a second later.
 - The display is created the first time a countdown is shown, and only the player's language of the arena messages is kept in memory.
 
 ## The countdown changes, inside Gladdy
