@@ -29,11 +29,9 @@ Before an arena match, the 3.3.5a client only prints a line in the chat at 60, 3
 
 ## Install
 
-1. Download this repository (**Code → Download ZIP**) and unzip it.
-2. Rename the folder to `RetailArenaCountdown` and put it inside `World of Warcraft/Interface/AddOns/`.
+1. Download the zip (`RetailArenaCountdown-<version>.zip`) from the [latest release](https://github.com/zxxdev/RetailArenaCountdown/releases/latest).
+2. Unzip it into `World of Warcraft/Interface/AddOns/`. You get a `RetailArenaCountdown` folder.
 3. Start the game and check that **RetailArenaCountdown** is enabled in the AddOns list on the character screen.
-
-A ready-to-copy zip will be attached to the v1.0.0 release.
 
 ## Usage
 
