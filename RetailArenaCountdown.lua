@@ -117,19 +117,25 @@ clock:SetScript("OnUpdate", function(_, elapsed)
 end)
 ns.clock = clock
 
-local function startClock()
-    if not clock:IsShown() then
-        sinceLastTick = 0
-        clock:Show()
-    end
+--- Shows `seconds` at once and counts down from there, a tick a second.
+local function startCountdown(seconds)
+    ns.countdown = seconds
+    sinceLastTick = 0
+    clock:Show()
+    ns.Tick()
 end
 
 --- One second of the countdown: draws the number and plays its sound.
 function ns.Tick()
     local count = ns.countdown
     if not ns.db.enabled or not count or count < 0 or count > 60 then
-        -- Turned off, or the crest has been shown: put everything back.
-        ns.Reset()
+        -- Turned off, or the crest has been shown. A test only clears the
+        -- screen; a real countdown that has ended means the match is on.
+        if ns.testing then
+            ns.StopCountdown()
+        else
+            ns.Reset()
+        end
         return
     end
 
@@ -167,15 +173,15 @@ end
 -- Arena --------------------------------------------------------------------
 
 --- A system message during the arena preparation: if it is one of the
---- countdown messages, the countdown jumps to its number of seconds.
+--- countdown messages, the countdown shows its number of seconds at once.
 function ns.OnArenaMessage(message)
-    if not message or ns.countdown == 0 then
+    if not message or (ns.countdown and ns.countdown < 0) then
         return -- "The battle has begun" again while the crest is up
     end
     for seconds, text in pairs(ns.messages) do
         if message:find(text, 1, true) then
-            ns.countdown = seconds
-            startClock()
+            ns.testing = false -- the real countdown takes over from a test
+            startCountdown(seconds)
             return
         end
     end
@@ -211,14 +217,27 @@ local function restoreBossEmotes()
     end
 end
 
---- Stops the countdown and puts everything back.
-function ns.Reset()
+--- Clears the screen and stops the clock, but keeps listening to the arena.
+function ns.StopCountdown()
     clock:Hide()
     ns.countdown = nil
+    ns.testing = false
+    ns.HideAll()
+end
+
+--- Stops the countdown and stops listening to the arena: the match is on,
+--- the player left, or the addon was turned off.
+function ns.Reset()
+    ns.StopCountdown()
     events:UnregisterEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
     events:UnregisterEvent("ARENA_OPPONENT_UPDATE")
     restoreBossEmotes()
-    ns.HideAll()
+end
+
+local function listenToArena()
+    events:RegisterEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
+    events:RegisterEvent("ARENA_OPPONENT_UPDATE")
+    silenceBossEmotes()
 end
 
 --- Called on every loading screen and zone change: listens for the arena
@@ -229,9 +248,7 @@ function ns.UpdateArenaState()
         if not ns.inArena then
             ns.inArena = true
             if ns.db.enabled then
-                events:RegisterEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
-                events:RegisterEvent("ARENA_OPPONENT_UPDATE")
-                silenceBossEmotes()
+                listenToArena()
             end
         end
     elseif ns.inArena then
@@ -268,8 +285,12 @@ end
 function ns.Command(input)
     local command, value = (input or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
     if command == "test" then
-        ns.countdown = TEST_SECONDS
-        startClock()
+        if ns.countdown and not ns.testing then
+            say("a real countdown is on screen; try again after it.")
+            return
+        end
+        ns.testing = true
+        startCountdown(TEST_SECONDS)
         say("test countdown started.")
     elseif command == "size" then
         local size = tonumber(value)
@@ -281,15 +302,20 @@ function ns.Command(input)
             say("the size goes from 64 to 512, for example /racd size 256.")
         end
     elseif command == "on" or command == "off" then
+        local wasOn = ns.db.enabled
         ns.db.enabled = command == "on"
         if not ns.db.enabled then
             ns.Reset()
+        elseif not wasOn and ns.inArena then
+            listenToArena() -- turned on inside the arena: start listening now
         end
         say(ns.db.enabled and "on." or "off.")
     elseif command == "emotes" and (value == "hide" or value == "show") then
         ns.db.hideEmotes = value == "hide"
         if not ns.db.hideEmotes then
             restoreBossEmotes()
+        elseif events:IsEventRegistered("CHAT_MSG_BG_SYSTEM_NEUTRAL") then
+            silenceBossEmotes() -- still waiting for the gates: hide them now
         end
         say(ns.db.hideEmotes and "boss emotes hidden during the countdown." or "boss emotes always shown.")
     else
