@@ -6,8 +6,8 @@
 The arena countdown of the modern (retail) game, for the **World of Warcraft 3.3.5a** client (Wrath of the Lich King): big numbers in the middle of the screen, a tick on the last ten seconds and your faction's crest when the gates open. Gladdy is not needed.
 
 <p align="center">
-  <img src="docs/images/countdown-images.png" width="720" alt="The addon's own images on a dark background: the number 45 in golden two-digit form, a larger single 3, and the Alliance crest, labelled 60 to 10 seconds, 9 to 1, and gates open.">
-  <br><sub>The addon's own images, as it shows them: two digits from 60 to 10, one bigger digit from 9 to 1, and your faction's crest when the gates open.</sub>
+  <img src="docs/images/arena-countdown-16.png" width="540" alt="In an arena before the match, a large golden 16 in the middle of the screen, above the players' health bars, with the arena's stone cage behind it.">
+  <br><sub>In an arena, 16 seconds before the gates open. The players' names are pixelated.</sub>
 </p>
 
 ## Why it exists
@@ -15,6 +15,11 @@ The arena countdown of the modern (retail) game, for the **World of Warcraft 3.3
 Before an arena match, the 3.3.5a client only prints a line in the chat at 60, 30 and 15 seconds. Gladdy has a countdown module, but it needs the whole of Gladdy, and in some of its copies the tens digit goes missing from 59 to 11. RetailArenaCountdown is that module made into a small addon of its own, with the sounds and the crest of the modern game.
 
 ## What it does
+
+<p align="center">
+  <img src="docs/images/countdown-images.png" width="720" alt="The addon's own images on a dark background: the number 45 in golden two-digit form, a larger single 3, and the Alliance crest, labelled 60 to 10 seconds, 9 to 1, and gates open.">
+  <br><sub>The addon's own images, as it shows them: two digits from 60 to 10, one bigger digit from 9 to 1, and your faction's crest when the gates open.</sub>
+</p>
 
 - **Numbers:** from 60 down, in the middle of the screen, from the moment the game announces the countdown. Two digits down to 10, then one bigger digit from 9 to 1.
 - **Sounds:** one at 10 seconds, one on every second from 9 to 1, and a closing one when the gates open.
